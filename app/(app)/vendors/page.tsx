@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload } from 'lucide-react';
 import type { Vendor } from '@/types';
 
 export default function VendorsPage() {
@@ -16,6 +16,8 @@ export default function VendorsPage() {
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', notes: '' });
   const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     const res = await fetch('/api/vendors');
@@ -63,14 +65,61 @@ export default function VendorsPage() {
     load();
   }
 
+  async function handleCsvUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/vendors/import', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? 'Import failed'); return; }
+
+      const msg = `${data.imported} vendor${data.imported !== 1 ? 's' : ''} imported${data.skipped ? `, ${data.skipped} skipped` : ''}`;
+      if (data.errors?.length) {
+        toast.warning(msg, { description: data.errors.slice(0, 3).join('\n') });
+      } else {
+        toast.success(msg);
+      }
+      load();
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Vendors</h1>
-        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={openNew}>
-          <Plus className="h-4 w-4 mr-1" /> Add
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleCsvUpload}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={importing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4 mr-1" />
+            {importing ? 'Importing…' : 'Import CSV'}
+          </Button>
+          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={openNew}>
+            <Plus className="h-4 w-4 mr-1" /> Add
+          </Button>
+        </div>
       </div>
+
+      <p className="text-xs text-slate-400">
+        CSV format: <span className="font-mono">name,phone,notes</span> (phone and notes optional)
+      </p>
 
       {vendors.length === 0 ? (
         <p className="text-center text-slate-400 py-12">No vendors yet</p>
