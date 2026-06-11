@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { db } from '@/lib/db';
-import { getSession, resolveRole } from '@/lib/auth';
+import { getSession, resolveRole, normalizePhone } from '@/lib/auth';
 import { VerifyOtpSchema } from '@/lib/validators';
 import type { RowDataPacket } from 'mysql2';
 
@@ -12,7 +12,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
   }
 
-  const { phone, code } = parsed.data;
+  const phone = normalizePhone(parsed.data.phone);
+  const { code } = parsed.data;
   const codeHash = createHash('sha256').update(code).digest('hex');
 
   const conn = await db.getConnection();

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash, randomInt } from 'crypto';
 import { db } from '@/lib/db';
 import { sendSms } from '@/lib/sms';
-import { resolveRole } from '@/lib/auth';
+import { resolveRole, normalizePhone } from '@/lib/auth';
 import { RequestOtpSchema } from '@/lib/validators';
 
 export async function POST(req: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
   }
 
-  const { phone } = parsed.data;
+  const phone = normalizePhone(parsed.data.phone);
 
   if (!resolveRole(phone)) {
     return NextResponse.json({ error: 'Number not authorised' }, { status: 403 });

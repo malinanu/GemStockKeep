@@ -42,6 +42,13 @@ export function isAuthError(v: SessionData | NextResponse): v is NextResponse {
   return v instanceof NextResponse;
 }
 
+export function normalizePhone(phone: string): string {
+  const trimmed = phone.trim();
+  if (trimmed.startsWith('0')) return '+94' + trimmed.slice(1);
+  if (trimmed.startsWith('94') && !trimmed.startsWith('+')) return '+' + trimmed;
+  return trimmed;
+}
+
 export function resolveRole(phone: string): 'admin' | 'user' | null {
   const adminNumbers = (process.env.ADMIN_NUMBERS ?? '')
     .split(',')
