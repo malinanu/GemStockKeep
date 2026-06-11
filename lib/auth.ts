@@ -15,6 +15,7 @@ const SESSION_OPTIONS = {
 };
 
 export async function getSession() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return getIronSession<SessionData>(cookies() as any, SESSION_OPTIONS);
 }
 

@@ -8,8 +8,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   try {
     await db.query('DELETE FROM shapes WHERE id = ?', [Number(params.id)]);
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    if (e.code === 'ER_ROW_IS_REFERENCED_2') {
+  } catch (e: unknown) {
+    if ((e as NodeJS.ErrnoException).code === 'ER_ROW_IS_REFERENCED_2') {
       return NextResponse.json({ error: 'Shape is in use' }, { status: 409 });
     }
     throw e;

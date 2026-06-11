@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
@@ -16,12 +15,12 @@ function LookupSection({ title, endpoint }: { title: string; endpoint: string })
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     const res = await fetch(endpoint);
     if (res.ok) setItems(await res.json());
-  }
+  }, [endpoint]);
 
-  useEffect(() => { load(); }, [endpoint]);
+  useEffect(() => { load(); }, [load]);
 
   async function add() {
     if (!name.trim()) return;

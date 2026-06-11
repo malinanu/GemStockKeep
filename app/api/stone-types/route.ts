@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth, requireAdmin, isAuthError } from '@/lib/auth';
 import { CreateLookupSchema } from '@/lib/validators';
-import type { RowDataPacket } from 'mysql2';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export async function GET() {
   const auth = await requireAuth();
@@ -18,10 +18,10 @@ export async function POST(req: NextRequest) {
   const parsed = CreateLookupSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
   try {
-    const [result] = await db.query<any>('INSERT INTO stone_types (name) VALUES (?)', [parsed.data.name]);
+    const [result] = await db.query<ResultSetHeader>('INSERT INTO stone_types (name) VALUES (?)', [parsed.data.name]);
     return NextResponse.json({ id: result.insertId }, { status: 201 });
-  } catch (e: any) {
-    if (e.code === 'ER_DUP_ENTRY') return NextResponse.json({ error: 'Name already exists' }, { status: 409 });
+  } catch (e: unknown) {
+    if ((e as NodeJS.ErrnoException).code === 'ER_DUP_ENTRY') return NextResponse.json({ error: 'Name already exists' }, { status: 409 });
     throw e;
   }
 }

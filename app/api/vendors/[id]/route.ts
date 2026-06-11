@@ -46,7 +46,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     "SELECT COUNT(*) as cnt FROM gems WHERE current_vendor_id = ? AND status = 'WITH_VENDOR'",
     [Number(params.id)]
   );
-  if ((gems[0] as any).cnt > 0) {
+  if ((gems[0] as RowDataPacket & { cnt: number }).cnt > 0) {
     return NextResponse.json(
       { error: 'Cannot delete a vendor who currently holds gems' },
       { status: 409 }

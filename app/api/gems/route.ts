@@ -4,7 +4,7 @@ import { requireAuth, requireAdmin, isAuthError } from '@/lib/auth';
 import { CreateGemSchema, GemsFilterSchema } from '@/lib/validators';
 import { nextGemCode } from '@/lib/ids';
 import { generateQrToken, signQrToken } from '@/lib/qr';
-import type { RowDataPacket } from 'mysql2';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const GEM_SELECT = `
   SELECT g.id, g.code, g.qr_token, g.stone_type_id, st.name AS stone_type_name,
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   try {
     await conn.beginTransaction();
 
-    const [result] = await conn.query<any>(
+    const [result] = await conn.query<ResultSetHeader>(
       `INSERT INTO gems (code, qr_token, stone_type_id, weight, shape_id, purchasing_price, bought_from_vendor_id, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [code, qrToken, stone_type_id, weight, shape_id, purchasing_price, bought_from_vendor_id, notes ?? null]

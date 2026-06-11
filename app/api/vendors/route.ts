@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth, requireAdmin, isAuthError } from '@/lib/auth';
 import { CreateVendorSchema } from '@/lib/validators';
-import type { RowDataPacket } from 'mysql2';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export async function GET() {
   const auth = await requireAuth();
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
 
   const { name, phone, notes } = parsed.data;
-  const [result] = await db.query<any>(
+  const [result] = await db.query<ResultSetHeader>(
     'INSERT INTO vendors (name, phone, notes) VALUES (?, ?, ?)',
     [name, phone ?? null, notes ?? null]
   );

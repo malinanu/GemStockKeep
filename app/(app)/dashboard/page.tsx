@@ -21,7 +21,7 @@ export default async function DashboardPage() {
       COUNT(*) AS total
     FROM gems
   `);
-  const counts = countRows[0] as any;
+  const counts = countRows[0] as Record<string, number>;
 
   const [sumRows] = await db.query<RowDataPacket[]>(`
     SELECT
@@ -32,7 +32,7 @@ export default async function DashboardPage() {
       SUM(CASE WHEN status = 'SOLD' AND sold_price < asking_price THEN 1 ELSE 0 END) AS sold_below
     FROM gems
   `);
-  const sums = sumRows[0] as any;
+  const sums = sumRows[0] as Record<string, number>;
 
   const [recentLogs] = await db.query<RowDataPacket[]>(`
     SELECT cl.*, g.code AS gem_code,
