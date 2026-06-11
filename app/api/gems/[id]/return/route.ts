@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, isAuthError } from '@/lib/auth';
+import { requireAdmin, isAuthError } from '@/lib/auth';
 import { returnGem } from '@/lib/custody';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthError(auth)) return auth;
 
   try {

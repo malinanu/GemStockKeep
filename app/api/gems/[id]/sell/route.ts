@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, isAuthError } from '@/lib/auth';
+import { requireAdmin, isAuthError } from '@/lib/auth';
 import { sellGem } from '@/lib/custody';
 import { SellSchema } from '@/lib/validators';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthError(auth)) return auth;
 
   const body = await req.json();
