@@ -118,7 +118,7 @@ export function GemActions({ gem, vendors, isAdmin }: Props) {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Vendor</Label>
-              <Select value={vendorId} onValueChange={setVendorId}>
+              <Select value={vendorId || undefined} onValueChange={setVendorId}>
                 <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
                 <SelectContent>
                   {vendors.map((v) => (

@@ -70,7 +70,7 @@ export default function NewGemPage() {
             <div className="space-y-2">
               <Label>Stone type</Label>
               <Select
-                value={form.stone_type_id}
+                value={form.stone_type_id || undefined}
                 onValueChange={(v) => setForm({ ...form, stone_type_id: v })}
                 required
               >
@@ -99,7 +99,7 @@ export default function NewGemPage() {
               <div className="space-y-2">
                 <Label>Shape</Label>
                 <Select
-                  value={form.shape_id}
+                  value={form.shape_id || undefined}
                   onValueChange={(v) => setForm({ ...form, shape_id: v })}
                   required
                 >
@@ -128,7 +128,7 @@ export default function NewGemPage() {
             <div className="space-y-2">
               <Label>Bought from</Label>
               <Select
-                value={form.bought_from_vendor_id}
+                value={form.bought_from_vendor_id || undefined}
                 onValueChange={(v) => setForm({ ...form, bought_from_vendor_id: v })}
                 required
               >

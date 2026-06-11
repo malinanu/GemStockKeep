@@ -27,14 +27,14 @@ export function GemsFilter({ vendors, currentStatus }: Props) {
   return (
     <div className="flex flex-wrap gap-2">
       <Select
-        value={currentStatus || ''}
-        onValueChange={(v) => update('status', v)}
+        value={currentStatus || '_all_active'}
+        onValueChange={(v) => update('status', v === '_all_active' ? '' : v)}
       >
         <SelectTrigger className="w-36">
           <SelectValue placeholder="All active" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">All active</SelectItem>
+          <SelectItem value="_all_active">All active</SelectItem>
           <SelectItem value="IN_STOCK">In stock</SelectItem>
           <SelectItem value="WITH_VENDOR">With vendor</SelectItem>
           <SelectItem value="SOLD">Sold</SelectItem>
@@ -44,14 +44,14 @@ export function GemsFilter({ vendors, currentStatus }: Props) {
       </Select>
 
       <Select
-        value={sp.get('vendor_id') ?? ''}
-        onValueChange={(v) => update('vendor_id', v)}
+        value={sp.get('vendor_id') ?? '_any_vendor'}
+        onValueChange={(v) => update('vendor_id', v === '_any_vendor' ? '' : v)}
       >
         <SelectTrigger className="w-40">
           <SelectValue placeholder="Any vendor" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Any vendor</SelectItem>
+          <SelectItem value="_any_vendor">Any vendor</SelectItem>
           {vendors.map((v) => (
             <SelectItem key={v.id} value={String(v.id)}>
               {v.name}
