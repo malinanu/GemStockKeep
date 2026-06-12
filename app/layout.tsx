@@ -1,19 +1,29 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Instrument_Sans, JetBrains_Mono } from 'next/font/google';
 import { Toaster } from 'sonner';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const instrumentSans = Instrument_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-sans',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['500', '600'],
+  variable: '--font-mono',
+});
 
 export const metadata: Metadata = {
-  title: 'GemKeep',
+  title: 'Gem Custody',
   description: 'Gem stock and custody tracking',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className={`${instrumentSans.variable} ${jetbrainsMono.variable} font-sans`}>
         {children}
         <Toaster richColors position="top-center" />
       </body>

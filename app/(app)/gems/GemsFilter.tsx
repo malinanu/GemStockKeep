@@ -1,71 +1,54 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { useTransition } from 'react';
 
-interface Vendor { id: number; name: string; }
-
 interface Props {
-  vendors: Vendor[];
   currentStatus: string;
+  counts: { all: number; in_stock: number; with_vendor: number; sold: number; returned: number };
 }
 
-export function GemsFilter({ vendors, currentStatus }: Props) {
+const CHIPS = [
+  { key: 'ALL',         label: 'All'         },
+  { key: 'IN_STOCK',    label: 'In stock'     },
+  { key: 'WITH_VENDOR', label: 'With vendor'  },
+  { key: 'SOLD',        label: 'Sold'         },
+  { key: 'RETURNED',    label: 'Returned'     },
+] as const;
+
+const COUNT_KEY: Record<string, keyof Props['counts']> = {
+  ALL: 'all', IN_STOCK: 'in_stock', WITH_VENDOR: 'with_vendor', SOLD: 'sold', RETURNED: 'returned',
+};
+
+export function GemsFilter({ currentStatus, counts }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
-  const [, startTransition] = useTransition();
+  const [, start] = useTransition();
 
-  function update(key: string, value: string) {
+  function setStatus(status: string) {
     const params = new URLSearchParams(sp.toString());
-    if (value) params.set(key, value);
-    else params.delete(key);
-    startTransition(() => router.push(`/gems?${params.toString()}`));
+    if (status === 'ALL') params.delete('status');
+    else params.set('status', status);
+    start(() => router.push(`/gems?${params.toString()}`));
   }
 
+  const active = currentStatus || 'ALL';
+
   return (
-    <div className="flex flex-wrap gap-2">
-      <Select
-        value={currentStatus || '_all_active'}
-        onValueChange={(v) => update('status', v === '_all_active' ? '' : v)}
-      >
-        <SelectTrigger className="w-36">
-          <SelectValue placeholder="All active" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="_all_active">All active</SelectItem>
-          <SelectItem value="IN_STOCK">In stock</SelectItem>
-          <SelectItem value="WITH_VENDOR">With vendor</SelectItem>
-          <SelectItem value="SOLD">Sold</SelectItem>
-          <SelectItem value="RETURNED">Returned</SelectItem>
-          <SelectItem value="ALL">All</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Select
-        value={sp.get('vendor_id') ?? '_any_vendor'}
-        onValueChange={(v) => update('vendor_id', v === '_any_vendor' ? '' : v)}
-      >
-        <SelectTrigger className="w-40">
-          <SelectValue placeholder="Any vendor" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="_any_vendor">Any vendor</SelectItem>
-          {vendors.map((v) => (
-            <SelectItem key={v.id} value={String(v.id)}>
-              {v.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Input
-        placeholder="Search code…"
-        className="w-32"
-        defaultValue={sp.get('search') ?? ''}
-        onChange={(e) => update('search', e.target.value)}
-      />
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {CHIPS.map(({ key, label }) => {
+        const isActive = active === key;
+        const count = counts[COUNT_KEY[key]];
+        return (
+          <button
+            key={key}
+            onClick={() => setStatus(key)}
+            style={{ fontSize: 12.5, fontWeight: isActive ? 600 : 500, padding: '8px 14px', borderRadius: 999, background: isActive ? '#e8edf4' : '#151b23', color: isActive ? '#0e1217' : '#94a3b3', border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+          >
+            {label} · {count}
+          </button>
+        );
+      })}
     </div>
   );
 }

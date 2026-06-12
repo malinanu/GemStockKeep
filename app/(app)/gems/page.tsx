@@ -3,11 +3,8 @@ import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/db';
 import { GemCard } from '@/components/GemCard';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
 import type { Gem } from '@/types';
 import type { RowDataPacket } from 'mysql2';
-import { GemsFilterSchema } from '@/lib/validators';
 import { GemsFilter } from './GemsFilter';
 
 const GEM_SELECT = `
@@ -24,15 +21,15 @@ const GEM_SELECT = `
 `;
 
 interface Props {
-  searchParams: { status?: string; vendor_id?: string; search?: string };
+  searchParams: { status?: string; search?: string };
 }
 
 export default async function GemsPage({ searchParams }: Props) {
   const session = await getSession();
   if (!session.phone) redirect('/login');
 
-  const filters = GemsFilterSchema.safeParse(searchParams);
-  const status = filters.success ? filters.data.status : undefined;
+  const status = searchParams.status;
+  const search = searchParams.search;
 
   const conditions: string[] = [];
   const values: unknown[] = [];
@@ -41,61 +38,92 @@ export default async function GemsPage({ searchParams }: Props) {
     conditions.push('g.status = ?');
     values.push(status);
   }
-  if (filters.success && filters.data.vendor_id) {
-    conditions.push('g.current_vendor_id = ?');
-    values.push(filters.data.vendor_id);
-  }
-  if (filters.success && filters.data.search) {
+  if (search) {
     conditions.push('g.code LIKE ?');
-    values.push(`%${filters.data.search}%`);
+    values.push(`%${search}%`);
   }
-
-  // Default: hide SOLD unless explicitly requested
   if (!status) {
     conditions.push("g.status != 'SOLD'");
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const [gems] = await db.query<RowDataPacket[]>(
-    `${GEM_SELECT} ${where} ORDER BY g.created_at DESC`,
-    values
-  );
+  const [[gems], [countRows]] = await Promise.all([
+    db.query<RowDataPacket[]>(`${GEM_SELECT} ${where} ORDER BY g.created_at DESC`, values),
+    db.query<RowDataPacket[]>(`
+      SELECT
+        COUNT(*) AS all_gems,
+        SUM(status = 'IN_STOCK')    AS in_stock,
+        SUM(status = 'WITH_VENDOR') AS with_vendor,
+        SUM(status = 'SOLD')        AS sold,
+        SUM(status = 'RETURNED')    AS returned
+      FROM gems
+    `),
+  ]);
 
-  const [vendors] = await db.query<RowDataPacket[]>(
-    'SELECT id, name FROM vendors WHERE is_active = 1 ORDER BY name'
-  );
+  const totals = countRows[0] as Record<string, number>;
+  const totalCost = (gems as Gem[]).filter(g => g.status !== 'SOLD').reduce((s, g) => s + Number(g.purchasing_price), 0);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Gems</h1>
+    <div style={{ color: '#e8edf4', padding: '0 22px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 20, paddingBottom: 4 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>Stones</div>
+          <div style={{ fontSize: 12.5, color: '#5d6b7d', marginTop: 2 }}>
+            {totals.all_gems ?? 0} total · Rs {(totalCost / 1000).toFixed(0)}k in stock at cost
+          </div>
+        </div>
         {session.role === 'admin' && (
-          <Link href="/gems/new">
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
-              <Plus className="h-4 w-4 mr-1" /> Add gem
-            </Button>
+          <Link href="/gems/new" style={{ textDecoration: 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(85,128,245,0.16)', borderRadius: 999, padding: '10px 16px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9db8ff" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#9db8ff' }}>New</span>
+            </div>
           </Link>
         )}
       </div>
 
-      <GemsFilter vendors={vendors as { id: number; name: string }[]} currentStatus={status ?? ''} />
+      {/* Search */}
+      <SearchBar defaultValue={search ?? ''} />
 
-      {gems.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
-          <p className="text-lg">No gems found</p>
-          {session.role === 'admin' && (
-            <Link href="/gems/new" className="mt-2 inline-block text-emerald-600 underline">
-              Add one
-            </Link>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {(gems as Gem[]).map((gem) => (
-            <GemCard key={gem.id} gem={gem} />
-          ))}
-        </div>
-      )}
+      {/* Filter chips */}
+      <div style={{ marginTop: 14 }}>
+        <GemsFilter
+          currentStatus={status ?? 'ALL'}
+          counts={{ all: totals.all_gems ?? 0, in_stock: totals.in_stock ?? 0, with_vendor: totals.with_vendor ?? 0, sold: totals.sold ?? 0, returned: totals.returned ?? 0 }}
+        />
+      </div>
+
+      {/* List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+        {(gems as Gem[]).length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: '#5d6b7d' }}>
+            <div style={{ fontSize: 16, marginBottom: 8 }}>No stones found</div>
+            {session.role === 'admin' && (
+              <Link href="/gems/new" style={{ color: '#7ea0ff', fontSize: 14 }}>Add one</Link>
+            )}
+          </div>
+        ) : (
+          (gems as Gem[]).map(gem => <GemCard key={gem.id} gem={gem} />)
+        )}
+      </div>
     </div>
+  );
+}
+
+function SearchBar({ defaultValue }: { defaultValue: string }) {
+  return (
+    <form action="/gems" method="get" style={{ marginTop: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#151b23', borderRadius: 14, padding: '12px 14px' }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5d6b7d" strokeWidth="1.9" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input
+          name="search"
+          type="text"
+          defaultValue={defaultValue}
+          placeholder="Search by code, e.g. GEM-0042"
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, color: defaultValue ? '#e8edf4' : '#5d6b7d', fontFamily: 'inherit' }}
+        />
+      </div>
+    </form>
   );
 }
