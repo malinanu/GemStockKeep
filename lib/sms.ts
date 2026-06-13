@@ -1,3 +1,5 @@
+import '@/lib/env';
+
 interface SmsAdapter {
   send(phone: string, message: string): Promise<void>;
 }
@@ -26,10 +28,18 @@ const textlkAdapter: SmsAdapter = {
       }),
     });
 
-    if (!res.ok) throw new Error('SMS send failed: non-2xx response');
+    // Text.lk echoes the message text back in its response; redact it so the
+    // OTP code never ends up in server logs via the error message.
+    const body = (await res.text()).split(message).join('[redacted]');
+    if (!res.ok) throw new Error(`SMS send failed: HTTP ${res.status} — ${body}`);
 
-    const data = await res.json();
-    if (data.status === 'error') throw new Error('SMS send failed: provider error');
+    let data: { status?: string };
+    try {
+      data = JSON.parse(body);
+    } catch {
+      throw new Error(`SMS send failed: non-JSON response — ${body}`);
+    }
+    if (data.status !== 'success') throw new Error(`SMS send failed: provider error — ${body}`);
   },
 };
 

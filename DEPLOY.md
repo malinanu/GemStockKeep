@@ -9,7 +9,7 @@ The app validates its environment at startup (`lib/env.ts`) and **refuses to ser
 
 **`SMS_PROVIDER=textlk` is the one that silently breaks OTP delivery if forgotten** — the `console` adapter logs OTPs to the server console instead of sending SMS, while the login screen still reports success. The startup validation now blocks this in production, but a server with `SMS_PROVIDER=console` (e.g. a test VPS) will never deliver real SMS by design.
 
-OTP requests are rate-limited to **3 per phone per 10 minutes** (HTTP 429 beyond that), and requesting a new code invalidates any previous unconsumed one.
+OTP requests are rate-limited to **3 per phone per 3 minutes** (HTTP 429 beyond that), and requesting a new code invalidates any previous unconsumed one.
 
 ---
 

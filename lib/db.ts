@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import '@/lib/env';
 
 declare global {
   // eslint-disable-next-line no-var

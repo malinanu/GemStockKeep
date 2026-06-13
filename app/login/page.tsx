@@ -52,8 +52,9 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fullPhone() }),
       });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error ?? 'Failed to send OTP'); return; }
+      let data: { error?: string } = {};
+      try { data = await res.json(); } catch { /* server returned non-JSON (e.g. HTML 500 page) */ }
+      if (!res.ok) { toast.error(data.error ?? 'Failed to send OTP. Please try again.'); return; }
       setStep('otp');
       setTimer(60);
       setDigits(['', '', '', '', '', '']);
@@ -98,8 +99,9 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fullPhone(), code }),
       });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error ?? 'Invalid OTP'); return; }
+      let data: { error?: string } = {};
+      try { data = await res.json(); } catch { /* server returned non-JSON */ }
+      if (!res.ok) { toast.error(data.error ?? 'Invalid OTP. Please try again.'); return; }
       router.push('/dashboard');
     } finally {
       setLoading(false);
@@ -128,7 +130,7 @@ export default function LoginPage() {
             Sent by SMS to <span style={{ color: TEXT, fontWeight: 600 }}>{maskedDisplay}</span>
           </div>
           <form onSubmit={verifyOtp}>
-            <div style={{ display: 'flex', gap: 9, marginTop: 36 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 9, marginTop: 36 }}>
               {digits.map((d, i) => (
                 <input
                   key={i}
@@ -141,7 +143,7 @@ export default function LoginPage() {
                   onKeyDown={e => handleDigitKeyDown(i, e)}
                   onFocus={() => setFocusIdx(i)}
                   onBlur={() => setFocusIdx(null)}
-                  style={{ flex: 1, height: 58, background: SURFACE, border: `${focusIdx === i ? `1.5px solid ${ACCENT}` : '1px solid rgba(255,255,255,0.12)'}`, borderRadius: 13, textAlign: 'center', fontSize: 22, fontWeight: 700, color: TEXT, outline: 'none', boxShadow: focusIdx === i ? `0 0 0 3px rgba(53,101,230,0.18)` : 'none', caretColor: ACCENT, fontFamily: 'inherit' }}
+                  style={{ height: 58, background: SURFACE, border: `${focusIdx === i ? `1.5px solid ${ACCENT}` : '1px solid rgba(255,255,255,0.12)'}`, borderRadius: 13, textAlign: 'center', fontSize: 22, fontWeight: 700, color: TEXT, outline: 'none', boxShadow: focusIdx === i ? `0 0 0 3px rgba(53,101,230,0.18)` : 'none', caretColor: ACCENT, fontFamily: 'inherit' }}
                 />
               ))}
             </div>
