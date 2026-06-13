@@ -1,5 +1,16 @@
 # Deploying GemStockKeep
 
+## Production environment checklist
+
+The app validates its environment at startup (`lib/env.ts`) and **refuses to serve** with a clear error in the logs if anything below is misconfigured:
+
+- Required everywhere: `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_NAME`, `SESSION_SECRET`, `QR_SECRET`, `ADMIN_NUMBERS`
+- Required when `NODE_ENV=production`: **`SMS_PROVIDER=textlk`**, `TEXTLK_API_TOKEN`, `TEXTLK_SENDER_ID`, `TEXTLK_API_URL`
+
+**`SMS_PROVIDER=textlk` is the one that silently breaks OTP delivery if forgotten** — the `console` adapter logs OTPs to the server console instead of sending SMS, while the login screen still reports success. The startup validation now blocks this in production, but a server with `SMS_PROVIDER=console` (e.g. a test VPS) will never deliver real SMS by design.
+
+OTP requests are rate-limited to **3 per phone per 10 minutes** (HTTP 429 beyond that), and requesting a new code invalidates any previous unconsumed one.
+
 ---
 
 ## CloudPanel (VPS / Test Server)
@@ -37,16 +48,7 @@ npm install
 npm run build
 ```
 
-### 4. Copy static assets into the standalone bundle
-
-Next.js standalone does not include static files automatically:
-
-```bash
-cp -r .next/static   .next/standalone/.next/static
-cp -r public         .next/standalone/public
-```
-
-### 5. Run the database migration
+### 4. Run the database migration
 
 On first deploy (or when schema changes), run this against your MySQL database:
 
@@ -81,18 +83,18 @@ Add every variable from the table below. The standalone `server.js` reads from t
 | `USER_NUMBERS` | `+9476xxxxxxx,+9471xxxxxxx` |
 | `OTP_TTL_SECONDS` | `300` |
 | `OTP_LENGTH` | `6` |
-| `SMS_PROVIDER` | `textlk` (or `console` for test server) |
+| `SMS_PROVIDER` | `textlk` |
 | `TEXTLK_API_TOKEN` | your Text.lk Bearer token |
 | `TEXTLK_SENDER_ID` | `3logiq com` |
 | `TEXTLK_API_URL` | `https://app.text.lk/api/v3/sms/send` |
 
-> **Tip for test server:** set `SMS_PROVIDER=console` — OTPs print to the app log instead of sending SMS.
+> **Note:** with `NODE_ENV=production` the app refuses to start unless `SMS_PROVIDER=textlk` and the `TEXTLK_*` vars are set (see checklist at the top). The `console` adapter is for local `npm run dev` only.
 
 ### 7. Configure the startup command
 
 CloudPanel → **Sites** → your site → **Node.js** tab:
 
-- **App Root:** `~/htdocs/gems.example.com/.next/standalone`
+- **App Root:** `~/htdocs/gems.example.com` (the project root, where `server.js` lives)
 - **Start Command:** `node server.js`
 
 Save, then click **Restart**.
@@ -100,8 +102,8 @@ Save, then click **Restart**.
 ### 8. Verify
 
 - Visit `https://gems.example.com` — should redirect to `/login`
-- Enter an admin phone from `ADMIN_NUMBERS`
-- If `SMS_PROVIDER=console`, check the app log for the OTP (CloudPanel → Sites → your site → **Logs**)
+- Enter an admin phone from `ADMIN_NUMBERS` — the OTP should arrive by SMS
+- If it doesn't, check the app log (CloudPanel → Sites → your site → **Logs**) for `[request-otp] SMS send failed` — the Text.lk error detail is logged there
 - Login and add a test gem
 
 ### Subsequent deploys
@@ -111,8 +113,6 @@ cd ~/htdocs/gems.example.com
 git pull
 npm install          # only needed if package.json changed
 npm run build
-cp -r .next/static .next/standalone/.next/static
-cp -r public       .next/standalone/public
 ```
 
 Then CloudPanel → Sites → your site → **Restart**.
@@ -125,65 +125,95 @@ Then CloudPanel → Sites → your site → **Restart**.
 | Camera won't open | Requires HTTPS. CloudPanel auto-provisions Let's Encrypt — make sure it's active. |
 | `ECONNREFUSED` on DB | Confirm `DATABASE_HOST=localhost` and the DB user has access from `127.0.0.1`. |
 | QR resolves to "not from this system" | `QR_SECRET` changed. Regenerating invalidates all existing QR codes — keep it stable. |
-| OTP not received | Set `SMS_PROVIDER=console` on test server and read from app logs. |
-| Static assets 404 | Re-run the `cp -r .next/static` and `cp -r public` steps after every build. |
+| OTP not received | Check app logs for `[request-otp] SMS send failed` — includes the Text.lk response. Also confirm the request didn't hit the 429 rate limit (3 per 10 min). |
+| Static assets 404 | Re-run `npm run build` and restart. Ensure `.next/static/` is present in the project root. |
 
 ---
 
 ## Namecheap Shared Hosting (cPanel)
 
-## Prerequisites
+### Prerequisites
 
-- cPanel with Node.js App support (Phusion Passenger)
+- cPanel with **Setup Node.js App** (Phusion Passenger)
 - MySQL database created in cPanel → MySQL Databases
 - Node 18+ available (check in cPanel → Setup Node.js App)
 - SSL certificate active (required for camera scanning)
 
-## 1. Build locally
+### How it works
+
+Phusion Passenger runs `server.js` at the application root as the startup file. The app reads `PORT` from Passenger's environment and starts the Next.js request handler. No standalone bundle — just the source, the `.next/` build output, and the installed `node_modules/`.
+
+### 1. Build locally
 
 ```bash
 npm run build
 ```
 
-The output is in `.next/standalone/`. Verify it exists before uploading.
+Verify `.next/` exists. There is no `standalone/` subdirectory — that mode is disabled.
 
-## 2. Run database migration
+### 2. Run the database migration
 
-Run this against your production database **before** starting the app:
+Run against your production database before the first deploy (or after schema changes):
 
 ```bash
-# Set prod env vars first, then:
+# Set prod env vars, then:
 npm run db:migrate
 ```
 
-Or connect to the server via SSH and run it there.
+Or SSH into the server and run it there after Step 4.
 
-## 3. Upload files to the server
+### 3. Upload files to the server
 
-Copy exactly these three items into your deployment directory (e.g. `/home/user/gemstockkeep/`):
+Upload the following into your application root (e.g. `/home/user/gemstockkeep/`). **Do not upload `node_modules/`** — cPanel installs them in Step 4.
+
+```
+app/
+components/
+db/
+lib/
+public/
+types/
+.next/               ← full build output
+server.js            ← Passenger startup file
+next.config.js
+package.json
+package-lock.json
+postcss.config.mjs
+tailwind.config.ts
+tsconfig.json
+```
+
+Easiest method: zip locally, upload via cPanel File Manager, extract on the server.
 
 ```bash
-# 1. Standalone bundle (includes node_modules for server deps)
-cp -r .next/standalone/. /path/to/deploy/
-
-# 2. Static assets — MUST be at this exact path
-cp -r .next/static /path/to/deploy/.next/static
-
-# 3. Public directory
-cp -r public /path/to/deploy/public
+# Create the zip (run from the project root):
+zip -r deploy.zip app components db lib public types .next \
+    server.js next.config.js package.json package-lock.json \
+    postcss.config.mjs tailwind.config.ts tsconfig.json \
+    --exclude "*.env*" --exclude "*/.git/*"
 ```
 
-The deploy directory must contain at minimum:
-```
-server.js          ← Passenger startup file
-.next/static/
-public/
-node_modules/      ← bundled inside standalone
-```
+Then cPanel → File Manager: upload `deploy.zip` to the app root and extract.
 
-## 4. Set environment variables
+### 4. Install dependencies on the server
 
-In cPanel → Setup Node.js App → your app → Environment Variables, add:
+cPanel → **Setup Node.js App** → your app → click **Run NPM Install**.
+
+This installs all packages listed in `package.json` into `node_modules/` on the server. Only repeat this when `package.json` changes.
+
+### 5. Configure the cPanel Node.js App
+
+1. cPanel → **Setup Node.js App** → **Create Application** (or edit existing)
+2. **Node.js version:** 18+ (pick the highest available)
+3. **Application mode:** Production
+4. **Application root:** `/home/user/gemstockkeep` (the directory containing `server.js`)
+5. **Application URL:** your domain or subdomain
+6. **Application startup file:** `server.js`
+7. Click **Create** (or **Save**) → then **Restart**
+
+### 6. Set environment variables
+
+cPanel → Setup Node.js App → your app → **Environment Variables**:
 
 | Variable | Value |
 |---|---|
@@ -204,37 +234,30 @@ In cPanel → Setup Node.js App → your app → Environment Variables, add:
 | `TEXTLK_SENDER_ID` | `3logiq com` |
 | `TEXTLK_API_URL` | `https://app.text.lk/api/v3/sms/send` |
 
-## 5. Configure the cPanel Node.js App
+Restart the app after saving env vars.
 
-1. cPanel → Setup Node.js App → Create Application
-2. **Node.js version:** 18+ (pick the highest available)
-3. **Application mode:** Production
-4. **Application root:** `/home/user/gemstockkeep` (your deploy directory)
-5. **Application URL:** your domain or subdomain
-6. **Application startup file:** `server.js`
-7. Click **Create** → then **Restart**
-
-## 6. Verify
+### 7. Verify
 
 - Visit your domain — should redirect to `/login`
 - Enter an admin phone number from `ADMIN_NUMBERS`
-- Check Text.lk dashboard or server logs to confirm OTP delivery
-- Login and add a test gem
+- OTP should arrive by SMS; login and add a test gem
 
-## Troubleshooting
+### Subsequent deploys
+
+1. Build locally: `npm run build`
+2. Re-upload `.next/` (and any changed source files)
+3. If `package.json` changed: click **Run NPM Install** in cPanel
+4. Restart the app in cPanel → Setup Node.js App
+
+### Troubleshooting
 
 | Symptom | Fix |
 |---|---|
+| App won't start | Check Passenger error log: cPanel → Logs → Node.js Logs. Usually a missing env var or Node version too old. |
 | Camera won't open | Requires HTTPS. Activate SSL in cPanel → SSL/TLS. |
-| App crashes on start | Check Passenger error log in cPanel → Logs. Usually missing env var. |
-| "Too many connections" | Verify `connectionLimit: 5` in `lib/db.ts`. Restart Node app after deploys. |
-| QR codes resolve to "not from this system" | `QR_SECRET` changed between builds. Regenerating it invalidates all existing QR codes. Keep it stable. |
-| OTP not delivered | Confirm `TEXTLK_SENDER_ID` exactly matches your approved Text.lk sender mask. `3logiq com` must match exactly. |
+| `Error: Cannot find module 'next'` | Run NPM Install in cPanel → Setup Node.js App. |
+| "Too many connections" DB error | Verify `connectionLimit: 5` in `lib/db.ts`. Restart the Node app after deploys. |
+| QR codes "not from this system" | `QR_SECRET` changed. Keep it stable — regenerating invalidates all existing QR codes. |
+| OTP not delivered | Confirm `TEXTLK_SENDER_ID` exactly matches your approved Text.lk sender mask. Check logs for `[request-otp] SMS send failed`. |
 | 500 on gem create | Run `npm run db:migrate` — tables may not exist yet. |
-
-## Subsequent deploys
-
-1. `npm run build` locally
-2. Upload `.next/standalone/`, `.next/static/`, `public/` again (overwrite)
-3. Restart the Node app in cPanel
-4. No need to re-run migrations unless the schema changed
+| Static assets not loading | Ensure `.next/` was fully uploaded, including `.next/static/`. |
