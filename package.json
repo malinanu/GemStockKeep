@@ -22,6 +22,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "iron-session": "^8.0.4",
+    "jsqr": "^1.4.0",
     "lucide-react": "^1.17.0",
     "mysql2": "^3.22.5",
     "nanoid": "^5.1.11",

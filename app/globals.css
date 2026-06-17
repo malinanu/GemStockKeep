@@ -9,6 +9,14 @@
 @media print {
   nav, .no-print { display: none !important; }
   body { background: white; }
+  body * { visibility: hidden; }
+  .qr-label, .qr-label * { visibility: visible; }
+  .qr-label {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
 }
 
 @keyframes slideUp {

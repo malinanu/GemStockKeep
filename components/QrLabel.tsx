@@ -11,11 +11,11 @@ export function QrLabel({ svgContent, code, stoneType, weight }: Props) {
       {/* svgContent is produced server-side by the `qrcode` package from a
           server-generated HMAC-signed token — it is never derived from user input. */}
       <div
-        style={{ width: 150, height: 150 }}
+        style={{ width: 140, height: 140 }}
         dangerouslySetInnerHTML={{ __html: svgContent }}
       />
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: '#10151c', marginTop: 12 }}>{code}</div>
-      <div style={{ fontSize: 12, color: '#6b7682', marginTop: 2 }}>{stoneType} · {weight} ct</div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 800, color: '#10151c', marginTop: 10, letterSpacing: '0.04em' }}>{code}</div>
+      <div style={{ fontSize: 11, color: '#6b7682', marginTop: 2 }}>{stoneType} · {weight} ct</div>
     </div>
   );
 }

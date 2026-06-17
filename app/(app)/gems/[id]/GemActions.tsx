@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { toast } from 'sonner';
@@ -47,16 +47,85 @@ function StyledInput({ value, onChange, placeholder, type = 'text', readOnly, st
   );
 }
 
-function VendorSelect({ vendors, value, onChange }: { vendors: Vendor[]; value: string; onChange: (v: string) => void }) {
+function VendorCombobox({ vendors, value, onChange }: { vendors: Vendor[]; value: string; onChange: (v: string) => void }) {
+  const selected = vendors.find(v => String(v.id) === value);
+  const [query, setQuery]   = useState(selected?.name ?? '');
+  const [open,  setOpen]    = useState(false);
+  const wrapRef             = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setQuery(selected?.name ?? '');
+  }, [value, selected?.name]);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery(selected?.name ?? '');
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [selected?.name]);
+
+  const filtered = vendors.filter(v => v.name.toLowerCase().includes(query.toLowerCase()));
+
+  function select(v: Vendor) {
+    onChange(String(v.id));
+    setQuery(v.name);
+    setOpen(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { setOpen(false); setQuery(selected?.name ?? ''); }
+    if (e.key === 'Enter' && filtered.length === 1) { e.preventDefault(); select(filtered[0]); }
+  }
+
   return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      style={{ width: '100%', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '14px 15px', fontSize: 14.5, fontWeight: 600, color: TEXT, appearance: 'none', outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}
-    >
-      <option value="">Select vendor…</option>
-      {vendors.map(v => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
-    </select>
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', background: SURFACE, border: `1px solid ${open ? '#3565e6' : BORDER}`, borderRadius: 14, padding: '14px 15px', boxShadow: open ? '0 0 0 3px rgba(53,101,230,0.18)' : 'none' }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={DIM} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 10 }}>
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+          type="text"
+          value={query}
+          placeholder="Search vendor…"
+          onChange={e => { setQuery(e.target.value); setOpen(true); onChange(''); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 14.5, fontWeight: 600, color: TEXT, fontFamily: 'inherit' }}
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => { onChange(''); setQuery(''); setOpen(true); }}
+            style={{ background: 'none', border: 'none', color: DIM, cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        )}
+      </div>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#1a2130', border: `1px solid ${BORDER}`, borderRadius: 14, overflow: 'hidden', zIndex: 50, boxShadow: '0 8px 32px rgba(0,0,0,0.45)' }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '14px 16px', fontSize: 13.5, color: DIM }}>No vendors match &ldquo;{query}&rdquo;</div>
+          ) : (
+            filtered.map((v, i) => (
+              <div
+                key={v.id}
+                onMouseDown={() => select(v)}
+                style={{ padding: '13px 16px', fontSize: 14.5, fontWeight: 600, color: TEXT, cursor: 'pointer', borderBottom: i < filtered.length - 1 ? `1px solid ${BORDER}` : 'none', background: String(v.id) === value ? 'rgba(53,101,230,0.15)' : 'transparent' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                onMouseLeave={e => (e.currentTarget.style.background = String(v.id) === value ? 'rgba(53,101,230,0.15)' : 'transparent')}
+              >
+                {v.name}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -177,9 +246,9 @@ export function GemActions({ gem, vendors, isAdmin }: Props) {
           {' · '}{gem.stone_type_name} · {gem.weight} ct · cost Rs {Number(gem.purchasing_price).toLocaleString()}
         </div>
         <Label>Vendor</Label>
-        <VendorSelect vendors={vendors} value={vendorId} onChange={setVendorId} />
+        <VendorCombobox vendors={vendors} value={vendorId} onChange={setVendorId} />
         <Label>Asking price <span style={{ color: '#f0617a' }}>*</span></Label>
-        <StyledInput value={askingPrice} onChange={setAskingPrice} placeholder="0" type="number" />
+        <StyledInput value={askingPrice} onChange={setAskingPrice} placeholder="e.g. 10,000" type="number" />
         <div style={{ fontSize: 12, color: DIM, marginTop: 8 }}>
           The price you&apos;re quoting {vendors.find(v => String(v.id) === vendorId)?.name ?? 'the vendor'}. Recorded on this hand-off.
         </div>

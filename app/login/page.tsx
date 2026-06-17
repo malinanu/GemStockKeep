@@ -99,10 +99,10 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fullPhone(), code }),
       });
-      let data: { error?: string } = {};
+      let data: { error?: string; profileComplete?: boolean } = {};
       try { data = await res.json(); } catch { /* server returned non-JSON */ }
       if (!res.ok) { toast.error(data.error ?? 'Invalid OTP. Please try again.'); return; }
-      router.push('/dashboard');
+      router.push(data.profileComplete === false ? '/profile/setup' : '/dashboard');
     } finally {
       setLoading(false);
     }

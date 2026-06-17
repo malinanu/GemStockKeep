@@ -60,6 +60,11 @@ export const ResolveQrSchema = z.object({
   qr: z.string().min(1),
 });
 
+export const UpdateProfileSchema = z.object({
+  first_name: z.string().min(1).max(100),
+  last_name:  z.string().min(1).max(100),
+});
+
 export const GemsFilterSchema = z.object({
   status: z.enum(['IN_STOCK', 'WITH_VENDOR', 'SOLD', 'RETURNED', 'ALL']).optional(),
   vendor_id: z.coerce.number().int().positive().optional(),

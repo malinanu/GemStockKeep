@@ -11,6 +11,7 @@ const MUTED   = '#94a3b3';
 const DIM     = '#5d6b7d';
 
 interface Lookup { id: number; name: string; }
+interface ScanLog { id: number; gem_code: string; scanner_phone: string; first_name: string; last_name: string; scanned_at: string; }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: DIM, marginBottom: 12 }}>{children}</div>;
@@ -85,6 +86,125 @@ function LookupSection({ title, endpoint }: { title: string; endpoint: string })
   );
 }
 
+function ProfileSection() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName,  setLastName]  = useState('');
+  const [editing,   setEditing]   = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [loaded,    setLoaded]    = useState(false);
+
+  useEffect(() => {
+    fetch('/api/profile').then(r => r.json()).then(d => {
+      setFirstName(d.first_name ?? '');
+      setLastName(d.last_name ?? '');
+      setLoaded(true);
+    });
+  }, []);
+
+  async function save() {
+    if (!firstName.trim() || !lastName.trim()) { toast.error('Both fields required'); return; }
+    setSaving(true);
+    try {
+      const r = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ first_name: firstName.trim(), last_name: lastName.trim() }),
+      });
+      if (!r.ok) { toast.error('Failed to save'); return; }
+      setEditing(false);
+      toast.success('Name updated');
+    } finally { setSaving(false); }
+  }
+
+  if (!loaded) return <div style={{ fontSize: 13, color: DIM }}>Loading…</div>;
+
+  if (editing) {
+    return (
+      <div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <input
+            placeholder="First name"
+            value={firstName}
+            onChange={e => setFirstName(e.target.value)}
+            autoFocus
+            style={{ flex: 1, background: '#0e1217', border: `1px solid ${BORDER}`, borderRadius: 12, padding: '10px 12px', fontSize: 14, color: TEXT, outline: 'none', fontFamily: 'inherit' }}
+          />
+          <input
+            placeholder="Last name"
+            value={lastName}
+            onChange={e => setLastName(e.target.value)}
+            style={{ flex: 1, background: '#0e1217', border: `1px solid ${BORDER}`, borderRadius: 12, padding: '10px 12px', fontSize: 14, color: TEXT, outline: 'none', fontFamily: 'inherit' }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setEditing(false)} style={{ flex: 1, padding: '10px 0', background: 'transparent', border: `1px solid ${BORDER}`, borderRadius: 12, color: MUTED, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button onClick={save} disabled={saving} style={{ flex: 1, padding: '10px 0', background: 'linear-gradient(135deg, #2c55c9, #3565e6)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit' }}>Save</button>
+        </div>
+      </div>
+    );
+  }
+
+  const hasName = firstName || lastName;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: TEXT }}>{hasName ? `${firstName} ${lastName}`.trim() : 'No name set'}</div>
+        {!hasName && <div style={{ fontSize: 12, color: DIM, marginTop: 2 }}>Tap Edit to add your name</div>}
+      </div>
+      <button onClick={() => setEditing(true)} style={{ padding: '7px 14px', background: 'rgba(85,128,245,0.14)', border: 'none', borderRadius: 10, color: '#9db8ff', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
+    </div>
+  );
+}
+
+function ScanLogsSection() {
+  const [logs, setLogs]   = useState<ScanLog[] | null>(null);
+  const [show, setShow]   = useState(false);
+
+  useEffect(() => {
+    fetch('/api/scan-logs').then(r => {
+      if (!r.ok) return; // non-admin — hide section
+      r.json().then(d => setLogs(d));
+    });
+  }, []);
+
+  if (!logs) return null;
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <SectionTitle>Recent scans</SectionTitle>
+        {logs.length > 0 && (
+          <button onClick={() => setShow(v => !v)} style={{ fontSize: 12, color: '#9db8ff', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+            {show ? 'Hide' : `Show ${logs.length}`}
+          </button>
+        )}
+      </div>
+      {logs.length === 0 && (
+        <Card><Row last><span style={{ fontSize: 13, color: DIM }}>No scans yet</span></Row></Card>
+      )}
+      {show && logs.length > 0 && (
+        <Card>
+          {logs.map((log, i) => {
+            const name = log.first_name ? `${log.first_name} ${log.last_name}`.trim() : log.scanner_phone;
+            const time = new Date(log.scanned_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+            return (
+              <Row key={log.id} last={i === logs.length - 1}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: TEXT }}>{log.gem_code}</span>
+                    <span style={{ fontSize: 12.5, color: MUTED, marginLeft: 8 }}>by {name}</span>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: DIM }}>{time}</div>
+                </div>
+              </Row>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function LogoutButton() {
   const router = useRouter();
   const [, start] = useTransition();
@@ -153,7 +273,7 @@ export default function SettingsPage() {
         </Row>
       </Card>
 
-      {/* Stone types */}
+      {/* Stone types & shapes */}
       <div style={{ marginTop: 24 }} />
       <SectionTitle>Lookups</SectionTitle>
       <Card>
@@ -165,8 +285,14 @@ export default function SettingsPage() {
       <div style={{ marginTop: 24 }} />
       <SectionTitle>Account</SectionTitle>
       <Card>
-        <LogoutButton />
+        <Row><ProfileSection /></Row>
+        <Row last><LogoutButton /></Row>
       </Card>
+
+      {/* Scan logs (admin only — hidden for users) */}
+      <ScanLogsSection />
+
+      <div style={{ height: 32 }} />
     </div>
   );
 }

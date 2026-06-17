@@ -20,8 +20,9 @@ export async function nextGemCode(): Promise<string> {
     const next = seq + 1;
 
     await conn.query(
-      'UPDATE settings SET setting_value = ? WHERE setting_key = ?',
-      [String(next), 'id_sequence']
+      `INSERT INTO settings (setting_key, setting_value) VALUES ('id_sequence', ?)
+       ON DUPLICATE KEY UPDATE setting_value = ?`,
+      [String(next), String(next)]
     );
 
     await conn.commit();

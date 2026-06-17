@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
@@ -15,39 +15,72 @@ type ScanState = 'scanning' | 'found' | 'error';
 
 export default function ScanPage() {
   const router = useRouter();
-  const [state, setState]   = useState<ScanState>('scanning');
-  const [result, setResult] = useState<{ code: string; stoneType?: string; vendorName?: string } | null>(null);
-  const [errMsg, setErrMsg] = useState('');
+  const [state, setState]         = useState<ScanState>('scanning');
+  const [result, setResult]       = useState<{ code: string; stoneType?: string; vendorName?: string } | null>(null);
+  const [errMsg, setErrMsg]       = useState('');
+  const [imgLoading, setImgLoading] = useState(false);
+  const fileInputRef              = useRef<HTMLInputElement>(null);
+
+  async function resolveQrValue(raw: string) {
+    const res = await fetch('/api/gems/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qr: raw }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setErrMsg(data.error ?? "This QR isn't from this system.");
+      setState('error');
+      setTimeout(() => { setErrMsg(''); setState('scanning'); }, 3000);
+      return;
+    }
+    setResult({ code: data.code ?? '', stoneType: data.stoneType, vendorName: data.vendorName });
+    setTimeout(() => router.push(`/gems/${data.gemId}`), 800);
+  }
 
   const handleScan = useCallback(
     async (codes: IDetectedBarcode[]) => {
       if (state !== 'scanning' || codes.length === 0) return;
       setState('found');
-      const raw = codes[0].rawValue;
-
       try {
-        const res = await fetch('/api/gems/resolve', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ qr: raw }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setErrMsg(data.error ?? "This QR isn't from this system.");
-          setState('error');
-          setTimeout(() => { setErrMsg(''); setState('scanning'); }, 3000);
-          return;
-        }
-        setResult({ code: data.code ?? '', stoneType: data.stoneType, vendorName: data.vendorName });
-        setTimeout(() => router.push(`/gems/${data.gemId}`), 800);
+        await resolveQrValue(codes[0].rawValue);
       } catch {
         setErrMsg("Could not resolve QR code.");
         setState('error');
         setTimeout(() => { setErrMsg(''); setState('scanning'); }, 3000);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [state, router]
   );
+
+  async function handleImageUpload(file: File) {
+    setImgLoading(true);
+    try {
+      const jsQR = (await import('jsqr')).default;
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement('canvas');
+      canvas.width  = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(bitmap, 0, 0);
+      const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+      const decoded = jsQR(imageData.data, imageData.width, imageData.height);
+      if (!decoded) {
+        setErrMsg('No QR code found in this image.');
+        setState('error');
+        setTimeout(() => { setErrMsg(''); setState('scanning'); }, 3000);
+        return;
+      }
+      setState('found');
+      await resolveQrValue(decoded.data);
+    } catch {
+      toast.error('Could not read the image.');
+    } finally {
+      setImgLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(120% 90% at 30% 20%, #2a3340 0%, #161c24 42%, #0a0d11 100%)', color: '#e8edf4', display: 'flex', flexDirection: 'column' }}>
@@ -138,8 +171,28 @@ export default function ScanPage() {
         </div>
       )}
 
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 40, textAlign: 'center', fontSize: 11.5, color: 'rgba(232,237,244,0.45)', zIndex: 2 }}>
-        Foreign QR? You&apos;ll see &ldquo;This QR isn&apos;t from this system.&rdquo;
+      {/* Upload image button */}
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 52, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, zIndex: 2 }}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); }}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={imgLoading || state === 'found'}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(18,24,32,0.82)', border: '1px solid rgba(232,237,244,0.18)', borderRadius: 999, padding: '10px 20px', color: 'rgba(232,237,244,0.85)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(10px)', fontFamily: 'inherit', opacity: (imgLoading || state === 'found') ? 0.5 : 1 }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+          </svg>
+          {imgLoading ? 'Reading image…' : 'Upload image'}
+        </button>
+        <div style={{ fontSize: 11.5, color: 'rgba(232,237,244,0.4)', textAlign: 'center' }}>
+          Got a QR photo from WhatsApp? Tap to upload.
+        </div>
       </div>
     </div>
   );

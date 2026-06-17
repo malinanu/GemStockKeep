@@ -19,12 +19,21 @@ export async function POST(req: NextRequest) {
   }
 
   const [rows] = await db.query<RowDataPacket[]>(
-    'SELECT id FROM gems WHERE qr_token = ?',
+    `SELECT g.id, g.code, st.name AS stone_type_name
+     FROM gems g
+     JOIN stone_types st ON st.id = g.stone_type_id
+     WHERE g.qr_token = ?`,
     [token]
   );
   if (!rows.length) {
     return NextResponse.json({ error: 'Gem not found' }, { status: 404 });
   }
 
-  return NextResponse.json({ gemId: rows[0].id });
+  const gem = rows[0];
+  await db.query(
+    'INSERT INTO scan_logs (gem_id, gem_code, scanner_phone) VALUES (?, ?, ?)',
+    [gem.id, gem.code, auth.phone]
+  );
+
+  return NextResponse.json({ gemId: gem.id, code: gem.code, stoneType: gem.stone_type_name });
 }

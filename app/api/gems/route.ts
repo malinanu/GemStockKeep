@@ -93,7 +93,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ id: result.insertId, code, qrPayload }, { status: 201 });
   } catch (e) {
     await conn.rollback();
-    throw e;
+    console.error('[POST /api/gems]', e);
+    return NextResponse.json({ error: 'Failed to create gem' }, { status: 500 });
   } finally {
     conn.release();
   }

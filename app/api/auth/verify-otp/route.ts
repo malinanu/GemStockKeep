@@ -52,7 +52,13 @@ export async function POST(req: NextRequest) {
     session.role = role;
     await session.save();
 
-    return NextResponse.json({ ok: true, role });
+    const [profileRows] = await conn.query<RowDataPacket[]>(
+      'SELECT first_name FROM user_profiles WHERE phone = ?',
+      [phone]
+    );
+    const profileComplete = profileRows.length > 0 && profileRows[0].first_name !== '';
+
+    return NextResponse.json({ ok: true, role, profileComplete });
   } catch (e) {
     await conn.rollback();
     throw e;
